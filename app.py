@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
+
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
@@ -49,6 +50,7 @@ company_name = st.sidebar.selectbox(
 )
 
 ticker = TOP_20_STOCKS[company_name]
+
 st.sidebar.markdown(f"**Ticker:** `{ticker}`")
 
 lookback = st.sidebar.slider(
@@ -139,7 +141,6 @@ st.pyplot(fig)
 
 # -------------------- FUTURE FORECAST --------------------
 st.subheader("🔮 Predicting Next 5 Business Days")
-
 last_window = scaled_data[-lookback:].flatten()
 future_predictions = []
 
@@ -167,8 +168,19 @@ st.dataframe(future_df)
 # -------------------- FINAL CHART --------------------
 st.subheader("📈 Historical Prices + 5-Day Forecast")
 fig2, ax2 = plt.subplots(figsize=(10, 5))
-ax2.plot(df.index[-100:], df["Close"].values[-100:], label="Actual Price (Last 100 Days)", color="blue")
-ax2.plot(future_df["Date"], future_df["Predicted Close"], label="Predicted Future Price", color="orange", marker="o")
+ax2.plot(
+    df.index[-100:],
+    df["Close"].values[-100:],
+    label="Actual Price (Last 100 Days)",
+    color="blue"
+)
+ax2.plot(
+    future_df["Date"],
+    future_df["Predicted Close"],
+    label="Predicted Future Price",
+    color="orange",
+    marker="o"
+)
 ax2.set_title(f"{ticker}: Next 5-Day Forecast")
 ax2.set_xlabel("Date")
 ax2.set_ylabel("Price (USD)")
