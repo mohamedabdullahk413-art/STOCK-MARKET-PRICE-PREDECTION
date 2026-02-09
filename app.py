@@ -17,6 +17,10 @@ st.set_page_config(
 
 st.title("📈 Multi-Stock Price Prediction (Classical ML)")
 
+# -------------------- FIXED MODEL PARAMETERS --------------------
+LOOKBACK = 60
+N_ESTIMATORS = 300
+
 # -------------------- TOP 20 COMPANIES --------------------
 TOP_20_STOCKS = {
     "Apple (AAPL)": "AAPL",
@@ -50,24 +54,11 @@ company_name = st.sidebar.selectbox(
 )
 
 ticker = TOP_20_STOCKS[company_name]
-
 st.sidebar.markdown(f"**Ticker:** `{ticker}`")
 
-lookback = st.sidebar.slider(
-    "Lookback Window (Days)",
-    min_value=20,
-    max_value=120,
-    value=60,
-    step=5
-)
-
-n_estimators = st.sidebar.slider(
-    "Random Forest Trees",
-    min_value=100,
-    max_value=500,
-    value=300,
-    step=50
-)
+st.sidebar.markdown("### Model Settings")
+st.sidebar.markdown(f"- **Lookback Window:** {LOOKBACK} days")
+st.sidebar.markdown(f"- **Random Forest Trees:** {N_ESTIMATORS}")
 
 # -------------------- LOAD DATA --------------------
 start_date = "2023-01-01"
@@ -76,22 +67,35 @@ end_date = datetime.now().strftime("%Y-%m-%d")
 st.subheader(f"📊 {company_name} Historical Data")
 
 df = yf.download(ticker, start=start_date, end=end_date)
-df = df[["Close"]].dropna()
+df = df[["Open", "Close"]].dropna()
 
-if len(df) < lookback + 20:
+if len(df) < LOOKBACK + 20:
     st.error("Not enough data available for this stock.")
     st.stop()
 
 st.dataframe(df.tail())
 
-# -------------------- PREPROCESSING --------------------
+# -------------------- OPEN VS CLOSE CHART --------------------
+st.subheader("📊 Opening vs Closing Prices")
+
+fig_open_close, ax = plt.subplots(figsize=(10, 5))
+ax.plot(df.index, df["Open"], label="Open Price", color="green", alpha=0.7)
+ax.plot(df.index, df["Close"], label="Close Price", color="blue", alpha=0.8)
+ax.set_title(f"{ticker} Open vs Close Prices")
+ax.set_xlabel("Date")
+ax.set_ylabel("Price (USD)")
+ax.legend()
+st.pyplot(fig_open_close)
+
+# -------------------- PREPROCESSING (CLOSE PRICE ONLY) --------------------
 data = df[["Close"]].values
+
 scaler = MinMaxScaler(feature_range=(0, 1))
 scaled_data = scaler.fit_transform(data)
 
 train_size = int(len(scaled_data) * 0.8)
 train_data = scaled_data[:train_size]
-test_data = scaled_data[train_size - lookback:]
+test_data = scaled_data[train_size - LOOKBACK:]
 
 def create_lag_features(dataset, lookback):
     X, y = [], []
@@ -100,14 +104,14 @@ def create_lag_features(dataset, lookback):
         y.append(dataset[i, 0])
     return np.array(X), np.array(y)
 
-X_train, y_train = create_lag_features(train_data, lookback)
-X_test, y_test = create_lag_features(test_data, lookback)
+X_train, y_train = create_lag_features(train_data, LOOKBACK)
+X_test, y_test = create_lag_features(test_data, LOOKBACK)
 
 # -------------------- MODEL --------------------
 @st.cache_resource
-def train_model(X_train, y_train, n_estimators):
+def train_model(X_train, y_train):
     model = RandomForestRegressor(
-        n_estimators=n_estimators,
+        n_estimators=N_ESTIMATORS,
         max_depth=12,
         min_samples_split=5,
         random_state=42,
@@ -117,7 +121,7 @@ def train_model(X_train, y_train, n_estimators):
     return model
 
 with st.spinner("Training Random Forest model... 🌳"):
-    model = train_model(X_train, y_train, n_estimators)
+    model = train_model(X_train, y_train)
 
 # -------------------- PREDICTION --------------------
 predicted_scaled = model.predict(X_test)
@@ -130,6 +134,7 @@ st.metric("Mean Absolute Error (Test Set)", f"${mae:.2f}")
 
 # -------------------- ACTUAL VS PREDICTED CHART --------------------
 st.subheader("📉 Actual vs Predicted Closing Prices")
+
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(actual_prices, label="Actual Price", color="blue")
 ax.plot(predicted_prices, label="Predicted Price", color="red")
@@ -141,7 +146,8 @@ st.pyplot(fig)
 
 # -------------------- FUTURE FORECAST --------------------
 st.subheader("🔮 Predicting Next 5 Business Days")
-last_window = scaled_data[-lookback:].flatten()
+
+last_window = scaled_data[-LOOKBACK:].flatten()
 future_predictions = []
 
 for _ in range(5):
@@ -167,6 +173,7 @@ st.dataframe(future_df)
 
 # -------------------- FINAL CHART --------------------
 st.subheader("📈 Historical Prices + 5-Day Forecast")
+
 fig2, ax2 = plt.subplots(figsize=(10, 5))
 ax2.plot(
     df.index[-100:],
@@ -188,4 +195,3 @@ ax2.legend()
 st.pyplot(fig2)
 
 st.success("✅ Forecast complete!")
-
